@@ -5,19 +5,19 @@ const log = console.log;
 
 // constants in one place
 const opacities = {
-  Непереборний: 1,
-  "Дуже високий": 0.9,
-  Високий: 0.8,
-  Помірний: 0.7,
-  Задовільний: 0.6,
+  "Непереборний": 1,
+  "Дуже високий": 0.8,
+  "Високий": 0.6,
+  "Помірний": 0.4,
+  "Задовільний": 0.2,
 };
 
 const pallete = {
-  Непереборний: "#004BC1",
+  "Непереборний": "#004BC1",
   "Дуже високий": "#004BC1",
-  Високий: "#004BC1",
-  Помірний: "#004BC1",
-  Задовільний: "#004BC1",
+  "Високий": "#004BC1",
+  "Помірний": "#004BC1",
+  "Задовільний": "#004BC1",
 };
 
 onload = async () => {
@@ -175,14 +175,6 @@ onload = async () => {
       <a href="https://zakon.rada.gov.ua/laws/show/z1339-24" target="_blank" rel="noopener noreferrer">наказ</a> і навело 
       <a href="https://zakon.rada.gov.ua/laws/show/z1339-24#n14" target="_blank" rel="noopener noreferrer">перелік</a> громад
       з їх рівнями безпеки в освіті. Відповідно до завдань Уряду МОН оновлює перелік щоквартально.</p>
-      <h3>Рівні ризиків</h3>
-      <ul>
-      <li>Непереборний - текст</li>
-      <li>Дуже високий - текст</li>
-      <li>Високий - текст</li>
-      <li>Помірний - текст</li>
-      <li>Задовільний - текст</li>
-      </ul>
       <p>Ви також можете переглянути 
       <a href="https://youtube.com/playlist?list=PLFVSJgZgf7h8hnkKGUnNML29ak7Lglw-_" target="_blank" rel="noopener noreferrer">плейлист</a> 
       з відео поясненнями рівнів ризику на офіційному каналі МОН в YouTube.</p>`;

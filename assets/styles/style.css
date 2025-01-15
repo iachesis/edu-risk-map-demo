@@ -53,7 +53,7 @@ main {
 .control {
   border-radius: 10px;
   padding: 20px;
-  background-color: rgb(194, 197, 203, 0.9);
+  background-color: rgba(194, 197, 203, 0.8);
   font-family: var(--font);
   font-size: 16px;
   line-height: 24px;
@@ -86,17 +86,17 @@ main {
 span[data-o="1"] {
   background-color: rgb(0, 75, 193, 1);
 }
-span[data-o="0.9"] {
-  background-color: rgb(0, 75, 193, 0.9);
-}
 span[data-o="0.8"] {
   background-color: rgb(0, 75, 193, 0.8);
 }
-span[data-o="0.7"] {
-  background-color: rgb(0, 75, 193, 0.7);
-}
 span[data-o="0.6"] {
   background-color: rgb(0, 75, 193, 0.6);
+}
+span[data-o="0.4"] {
+  background-color: rgb(0, 75, 193, 0.4);
+}
+span[data-o="0.2"] {
+  background-color: rgb(0, 75, 193, 0.2);
 }
 
 h1,

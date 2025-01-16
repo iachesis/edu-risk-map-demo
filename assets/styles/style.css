@@ -9,6 +9,12 @@
   --h2-line-height: 36px;
 }
 
+*,
+*:focus,
+*:hover {
+    outline: none;
+}
+
 body {
   display: flex;
   flex-direction: column;

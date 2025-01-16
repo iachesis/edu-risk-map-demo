@@ -5,8 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="assets/styles/style.css" />
     <link rel="stylesheet" href="assets/styles/leaflet.css" />
-    <script async src="assets/scripts/leaflet.js"></script>
-    <script async src="assets/scripts/app.js"></script>
+    <script src="assets/scripts/leaflet.js"></script>
+    <script src="assets/scripts/fuse.js"></script>
+    <script src="assets/scripts/app.js"></script>
     <title>Рівні ризиків територіальних громад в системі освіти</title>
   </head>
   <body>
@@ -19,8 +20,9 @@
         <input
           type="search"
           id="search"
-          placeholder="Пошук області або громади"
+          placeholder="Пошук за назвою або КАТОТТГ"
           autocomplete="off"
+          title="Пошук підсвічує на мапі топ-5 результатів"
         />
         <div
           id="help"

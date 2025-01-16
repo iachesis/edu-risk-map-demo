@@ -20,6 +20,8 @@ const pallete = {
   "Задовільний": "#004BC1",
 };
 
+var searchMap = {};
+
 onload = async () => {
   loadAssets().then(({ adm1, adm3, data }) => {
     //style ADM3 level geo features
@@ -77,6 +79,7 @@ onload = async () => {
             },
           })
           .bindTooltip(data[feature.properties.id].name);
+          searchMap[data[feature.properties.id].code] = layer;
       }
     };
 
@@ -191,7 +194,38 @@ onload = async () => {
     document.querySelector("#help").onclick = () => {
       map.desc ? desc.remove() : desc.addTo(map);
     };
-  });
+
+    // add search
+    const options = {
+      threshold: 0.3,
+      location: 0,
+      distance: 100,
+      includeScore: true,
+      shouldSort: true,
+      keys: ['code', 'name'],
+    }
+
+    const db = Object.values(data);
+    const index = Fuse.createIndex(options.keys, db)
+    const fuse = new Fuse(db, options, index);
+
+    document.querySelector("#search").oninput = () => {
+      adm3_layer.resetStyle();
+      if (document.querySelector("#search").value) {
+        const search = fuse.search(document.querySelector("#search").value, {
+          limit: 5,
+        });
+        log(search);
+        for (const result in search) {
+          searchMap[search[result].item.code].setStyle({
+            fillColor: "red",
+            fillOpacity: 1 - 2 * search[result].score,
+          })
+        }
+      }
+    };
+
+  })
 };
 
 const loadAssets = async () => {

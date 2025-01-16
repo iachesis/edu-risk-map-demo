@@ -100,7 +100,7 @@ onload = async () => {
     });
 
     // get geojson bounds and map center
-    const bounds = adm3_layer.getBounds().pad(0.05);
+    const bounds = adm3_layer.getBounds().pad(0.5);
     const center = bounds.getCenter();
 
     // map initialization
@@ -253,8 +253,7 @@ onload = async () => {
           searchOpacities.push(1 - result / searchLimit);
         }
         if (searchResults.length > 0) {
-          const searchFeatures = L.featureGroup(searchResults);
-          map.flyToBounds(searchFeatures.getBounds(), {
+          map.flyToBounds(L.featureGroup(searchResults).getBounds().pad(0.5), {
             duration: 0.5,
           });
         }

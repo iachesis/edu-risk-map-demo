@@ -1,26 +1,26 @@
 "use strict";
 
-// for debudding -> delete from production
-const log = console.log;
-
 // constants in one place
 const opacities = {
-  "Непереборний": 1,
+  Непереборний: 1,
   "Дуже високий": 0.8,
-  "Високий": 0.6,
-  "Помірний": 0.4,
-  "Задовільний": 0.2,
+  Високий: 0.6,
+  Помірний: 0.4,
+  Задовільний: 0.2,
 };
 
 const pallete = {
-  "Непереборний": "#004BC1",
+  Непереборний: "#004BC1",
   "Дуже високий": "#004BC1",
-  "Високий": "#004BC1",
-  "Помірний": "#004BC1",
-  "Задовільний": "#004BC1",
+  Високий: "#004BC1",
+  Помірний: "#004BC1",
+  Задовільний: "#004BC1",
 };
 
+const searchLimit = 5;
 var searchMap = {};
+var currentSearch = [];
+var searchOpacities = [];
 
 onload = async () => {
   loadAssets().then(({ adm1, adm3, data }) => {
@@ -69,17 +69,26 @@ onload = async () => {
               info.update(feature.properties);
             },
             mouseout: (event) => {
+              const flag = currentSearch.includes(
+                data[feature.properties.id].code
+              );
               event.target
                 .setStyle({
-                  fillOpacity: opacities[data[feature.properties.id].risk],
-                  fillColor: pallete[data[feature.properties.id].risk],
+                  fillOpacity: flag
+                    ? searchOpacities[
+                        currentSearch.indexOf(data[feature.properties.id].code)
+                      ]
+                    : opacities[data[feature.properties.id].risk],
+                  fillColor: flag
+                    ? "red"
+                    : pallete[data[feature.properties.id].risk],
                 })
                 .bringToBack();
               info.update();
             },
           })
           .bindTooltip(data[feature.properties.id].name);
-          searchMap[data[feature.properties.id].code] = layer;
+        searchMap[data[feature.properties.id].code] = layer;
       }
     };
 
@@ -189,7 +198,6 @@ onload = async () => {
       delete map.desc;
     };
 
-
     // attach click event to help button
     document.querySelector("#help").onclick = () => {
       map.desc ? desc.remove() : desc.addTo(map);
@@ -197,34 +205,62 @@ onload = async () => {
 
     // add search
     const options = {
-      threshold: 0.3,
+      threshold: 0.2,
       location: 0,
-      distance: 100,
+      distance: 25,
       includeScore: true,
-      shouldSort: true,
-      keys: ['code', 'name'],
-    }
+      findAllMatches: true,
+      keys: [
+        {
+          name: "code",
+          weight: 3,
+        },
+        {
+          name: "name",
+          weight: 3,
+        },
+        {
+          name: "region",
+          weight: 1,
+        },
+      ],
+    };
 
     const db = Object.values(data);
-    const index = Fuse.createIndex(options.keys, db)
+    const index = Fuse.createIndex(options.keys, db);
     const fuse = new Fuse(db, options, index);
 
     document.querySelector("#search").oninput = () => {
+      //resets
       adm3_layer.resetStyle();
-      if (document.querySelector("#search").value) {
+      currentSearch = [];
+      searchOpacities = [];
+      if (
+        document.querySelector("#search").value &&
+        document.querySelector("#search").value.length > 2
+      ) {
         const search = fuse.search(document.querySelector("#search").value, {
-          limit: 5,
+          limit: searchLimit,
         });
+        let searchResults = [];
         for (const result in search) {
-          searchMap[search[result].item.code].setStyle({
+          searchResults.push(searchMap[search[result].item.code]);
+          searchResults[result].setStyle({
             fillColor: "red",
-            fillOpacity: 1 - result/5,
-          })
+            fillOpacity: 1 - result / searchLimit,
+          });
+          currentSearch.push(search[result].item.code);
+          searchOpacities.push(1 - result / searchLimit);
+        }
+        if (searchResults.length > 0) {
+          const searchFeatures = L.featureGroup(searchResults);
+          map.flyToBounds(searchFeatures.getBounds(), {
+            duration: 0.5,
+          });
         }
       }
     };
-
-  })
+  });
 };
 
 const loadAssets = async () => {

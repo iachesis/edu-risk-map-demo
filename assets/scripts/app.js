@@ -215,11 +215,10 @@ onload = async () => {
         const search = fuse.search(document.querySelector("#search").value, {
           limit: 5,
         });
-        log(search);
         for (const result in search) {
           searchMap[search[result].item.code].setStyle({
             fillColor: "red",
-            fillOpacity: 1 - 2 * search[result].score,
+            fillOpacity: 1 - result/5,
           })
         }
       }

@@ -63,12 +63,16 @@ main {
   font-family: var(--font);
   font-size: 16px;
   line-height: 24px;
-  max-width: 50vw;
+  max-width: 25vw;
   min-width: 215px;
 }
 
 .desc p {
   margin: 10px 0 10px 0;
+}
+
+.desc {
+  background-color: rgb(194, 197, 203)
 }
 
 .legend {

@@ -48,9 +48,9 @@ onload = async () => {
       return {
         fill: false,
         stroke: true,
-        color: "white",
         weight: 1,
         opacity: 1,
+        color: "#FFE358",
       };
     };
 
@@ -89,6 +89,8 @@ onload = async () => {
           })
           .bindTooltip(data[feature.properties.id].name);
         searchMap[data[feature.properties.id].code] = layer;
+      } else {
+        layer.bindTooltip("Чорнобильська зона відчуження");
       }
     };
 
@@ -117,6 +119,14 @@ onload = async () => {
       maxBounds: bounds,
       maxBoundsViscosity: 1.0,
       layers: [adm3_layer, adm1_layer],
+    });
+
+    map.on("movestart", () => {
+      map.eachLayer((layer) => layer.closeTooltip());
+    });
+
+    map.on("zoomstart", () => {
+      map.eachLayer((layer) => layer.closeTooltip());
     });
 
     // attributions control
@@ -210,20 +220,7 @@ onload = async () => {
       distance: 25,
       includeScore: true,
       findAllMatches: true,
-      keys: [
-        {
-          name: "code",
-          weight: 3,
-        },
-        {
-          name: "name",
-          weight: 3,
-        },
-        {
-          name: "region",
-          weight: 1,
-        },
-      ],
+      keys: ["code", "name"],
     };
 
     const db = Object.values(data);

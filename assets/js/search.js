@@ -27,6 +27,51 @@ export const getSearchHighlight = (searchState, code) => {
   };
 };
 
+export const aggregateLayerBounds = (layers) =>
+  layers.reduce((combinedBounds, layer) => {
+    if (!layer || typeof layer.getBounds !== "function") {
+      console.warn("Пропущено шар без getBounds при обчисленні межі.");
+      return combinedBounds;
+    }
+
+    const nextBounds = layer.getBounds();
+    if (!combinedBounds) {
+      return typeof nextBounds.clone === "function" ? nextBounds.clone() : nextBounds;
+    }
+
+    combinedBounds.extend(nextBounds);
+    return combinedBounds;
+  }, null);
+
+export const highlightSearchResults = (
+  searchState,
+  results,
+  highlightLimit,
+  { onMissingLayer } = {}
+) => {
+  const highlightedLayers = [];
+
+  results.slice(0, highlightLimit).forEach((result, index) => {
+    const { item } = result;
+    const layer = searchState.searchMap[item.code];
+    if (!layer) {
+      onMissingLayer?.(item.code);
+      return;
+    }
+
+    const opacity = 1 - index / highlightLimit;
+    layer.setStyle({
+      fillColor: "red",
+      fillOpacity: opacity,
+    });
+    searchState.currentSearch.push(item.code);
+    searchState.searchOpacities.push(opacity);
+    highlightedLayers.push(layer);
+  });
+
+  return highlightedLayers;
+};
+
 const createSearchIndex = (adm3, getFeatureData, missingSearchEntries) => {
   const searchOptions = {
     threshold: 0.2,
@@ -66,6 +111,11 @@ const createSearchIndex = (adm3, getFeatureData, missingSearchEntries) => {
 export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState }) => {
   const missingSearchEntries = new Set();
   const fuse = createSearchIndex(adm3, getFeatureData, missingSearchEntries);
+
+  const defaultMapBounds =
+    adm3Layer && typeof adm3Layer.getBounds === "function"
+      ? adm3Layer.getBounds()
+      : null;
 
   const searchResults = document.querySelector("#search-results");
   const searchInput = document.querySelector("#search");
@@ -161,6 +211,9 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
     const query = searchInput.value.trim();
     if (query === "" || query.length <= 2) {
       clearSearchResults();
+      if (defaultMapBounds) {
+        map.fitBounds(defaultMapBounds);
+      }
       return;
     }
 
@@ -170,27 +223,57 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
 
     if (results.length === 0) {
       setSelectedResult(null);
+      if (defaultMapBounds) {
+        map.fitBounds(defaultMapBounds);
+      }
       return;
     }
 
-    results.slice(0, SEARCH_HIGHLIGHT_LIMIT).forEach((result, index) => {
-      const { item } = result;
-      const layer = searchState.searchMap[item.code];
-      if (!layer) {
-        console.warn(`Шар для результату пошуку з кодом ${item.code} відсутній.`);
+    const padBounds = (bounds) =>
+      typeof bounds?.pad === "function" ? bounds.pad(0.5) : bounds;
+
+    const highlightedLayers = highlightSearchResults(
+      searchState,
+      results,
+      SEARCH_HIGHLIGHT_LIMIT,
+      {
+        onMissingLayer: (code) =>
+          console.warn(`Шар для результату пошуку з кодом ${code} відсутній.`),
+      }
+    );
+
+    setSelectedResult(results[0]?.item.code);
+
+    if (highlightedLayers.length === 0) {
+      if (defaultMapBounds) {
+        map.fitBounds(defaultMapBounds);
+      }
+      return;
+    }
+
+    if (highlightedLayers.length === 1) {
+      const singleBounds = highlightedLayers[0].getBounds?.();
+      if (!singleBounds) {
+        console.warn("Межі для вибраного шару недоступні.");
+        if (defaultMapBounds) {
+          map.fitBounds(defaultMapBounds);
+        }
         return;
       }
 
-      const opacity = 1 - index / SEARCH_HIGHLIGHT_LIMIT;
-      layer.setStyle({
-        fillColor: "red",
-        fillOpacity: opacity,
-      });
-      searchState.currentSearch.push(item.code);
-      searchState.searchOpacities.push(opacity);
-    });
+      map.flyToBounds(padBounds(singleBounds), { duration: 0.5 });
+      return;
+    }
 
-    setSelectedResult(results[0]?.item.code, { fly: true });
+    const combinedBounds = aggregateLayerBounds(highlightedLayers);
+    if (combinedBounds) {
+      map.fitBounds(padBounds(combinedBounds));
+      return;
+    }
+
+    if (defaultMapBounds) {
+      map.fitBounds(defaultMapBounds);
+    }
   };
 
   const debouncedSearch = debounce(handleSearchInput, SEARCH_DEBOUNCE_MS);

@@ -18,6 +18,7 @@ const RISK_STYLE_MAP = Object.fromEntries(
 );
 
 const DEFAULT_RISK_LEVEL = RISK_LEVELS.at(-1).level;
+const NEUTRAL_STYLE = { color: "#D7DCE0", opacity: 0.4 };
 const CHORNOBYL_ZONE_ID = "3200000";
 const SEARCH_HIGHLIGHT_LIMIT = 5;
 const SEARCH_RENDER_LIMIT = 10;
@@ -83,11 +84,31 @@ onload = async () => {
 };
 
 const initializeMap = ({ adm1, adm3, data }) => {
-  const getFeatureData = (id) => data?.[id] ?? null;
+  const missingDataIds = new Set();
+  const missingSearchEntries = new Set();
+
+  const getFeatureData = (id) => {
+    if (!id || !data || !Object.hasOwn(data, id)) {
+      if (id && !missingDataIds.has(id)) {
+        missingDataIds.add(id);
+        console.warn(`Дані для громади з id ${id} відсутні.`);
+      }
+      return null;
+    }
+    return data[id];
+  };
+
+  const getFeatureStyle = (featureData) => {
+    if (!featureData) {
+      return NEUTRAL_STYLE;
+    }
+
+    return getRiskStyle(featureData.risk);
+  };
 
   const styleAdm3 = (feature) => {
     const featureData = getFeatureData(feature.properties.id);
-    const riskStyle = getRiskStyle(featureData?.risk);
+    const riskStyle = getFeatureStyle(featureData);
 
     const isChornobyl = feature.properties.id === CHORNOBYL_ZONE_ID;
 
@@ -122,16 +143,16 @@ const initializeMap = ({ adm1, adm3, data }) => {
       return;
     }
 
-    const featureData = getFeatureData(props.id);
+    const featureData = props?.id ? getFeatureData(props.id) : null;
     if (featureData) {
       this._div.innerHTML = `<h2>Рівень ризику громади</h2>
-        <b>${featureData.name}</b>
+        <b>${featureData.name ?? "Невідома громада"}</b>
         <br />
-        ${featureData.region}
+        ${featureData.region ?? "Регіон невідомий"}
         <br />
-        КАТОТТГ: ${featureData.code}
+        КАТОТТГ: ${featureData.code ?? "Н/Д"}
         <br /><br />
-        Ризик: <b>${featureData.risk}</b>`;
+        Ризик: <b>${featureData.risk ?? DEFAULT_RISK_LEVEL}</b>`;
       return;
     }
 
@@ -161,11 +182,11 @@ const initializeMap = ({ adm1, adm3, data }) => {
           info.update(feature.properties);
         },
         mouseout: (event) => {
-          const searchIndex = featureData
+          const searchIndex = featureData?.code
             ? currentSearch.indexOf(featureData.code)
             : -1;
           const isSearchResult = searchIndex !== -1;
-          const riskStyle = getRiskStyle(featureData?.risk);
+          const riskStyle = getFeatureStyle(featureData);
           event.target
             .setStyle({
               fillOpacity: isSearchResult
@@ -293,6 +314,7 @@ const initializeMap = ({ adm1, adm3, data }) => {
   const flyToResult = (code) => {
     const layer = searchMap[code];
     if (!layer) {
+      console.warn(`Шар для коду ${code} не знайдено.`);
       return;
     }
 
@@ -308,6 +330,10 @@ const initializeMap = ({ adm1, adm3, data }) => {
     updateResultSelection();
 
     if (fly && selectedResultCode && (hasChanged || forceFly)) {
+      if (!searchMap[selectedResultCode]) {
+        console.warn(`Неможливо виконати переліт: відсутній шар для ${selectedResultCode}.`);
+        return;
+      }
       flyToResult(selectedResultCode);
     }
   };
@@ -362,11 +388,28 @@ const initializeMap = ({ adm1, adm3, data }) => {
     keys: ["code", "name"],
   };
 
-  const searchData = Object.values(data).filter(
-    (entry) => entry && entry.code && entry.name
-  );
+  const searchData = adm3.features.reduce((list, feature) => {
+    const entry = getFeatureData(feature.properties.id);
+    if (!entry || !entry.code || !entry.name) {
+      if (!missingSearchEntries.has(feature.properties.id)) {
+        missingSearchEntries.add(feature.properties.id);
+        console.warn(
+          `Запис для пошуку з id ${feature.properties.id} відсутній або некоректний.`
+        );
+      }
+      return list;
+    }
+
+    list.push(entry);
+    return list;
+  }, []);
+
   const searchIndex = Fuse.createIndex(searchOptions.keys, searchData);
   const fuse = new Fuse(searchData, searchOptions, searchIndex);
+
+  console.info(
+    `Всього записів пошуку: ${searchData.length}. Пропущено через відсутність даних: ${missingSearchEntries.size}.`
+  );
 
   const searchInput = document.querySelector("#search");
 
@@ -399,6 +442,7 @@ const initializeMap = ({ adm1, adm3, data }) => {
       const { item } = result;
       const layer = searchMap[item.code];
       if (!layer) {
+        console.warn(`Шар для результату пошуку з кодом ${item.code} відсутній.`);
         return;
       }
 
@@ -446,6 +490,10 @@ const initializeMap = ({ adm1, adm3, data }) => {
 
     setSelectedResult(button.dataset.code, { fly: true, forceFly: true });
   });
+
+  if (missingDataIds.size > 0) {
+    console.info(`Відсутні дані для ${missingDataIds.size} громад.`);
+  }
 };
 
 const loadAssets = async () => {

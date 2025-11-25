@@ -19,13 +19,25 @@ const RISK_STYLE_MAP = Object.fromEntries(
 
 const DEFAULT_RISK_LEVEL = RISK_LEVELS.at(-1).level;
 const CHORNOBYL_ZONE_ID = "3200000";
-const SEARCH_LIMIT = 5;
+const SEARCH_HIGHLIGHT_LIMIT = 5;
+const SEARCH_RENDER_LIMIT = 10;
+const SEARCH_DEBOUNCE_MS = 250;
 
 const searchMap = {};
 let currentSearch = [];
 let searchOpacities = [];
+let selectedResultCode = null;
+let lastResults = [];
 
 const fetchCache = new Map();
+
+const debounce = (fn, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+};
 
 const showLoading = () => {
   const loadingElement = document.querySelector("#loading");
@@ -263,6 +275,84 @@ const initializeMap = ({ adm1, adm3, data }) => {
     map.desc ? desc.remove() : desc.addTo(map);
   };
 
+  const searchResults = document.querySelector("#search-results");
+
+  const updateResultSelection = () => {
+    if (!searchResults) {
+      return;
+    }
+
+    const buttons = searchResults.querySelectorAll("button[data-code]");
+    buttons.forEach((button) => {
+      const isSelected = button.dataset.code === selectedResultCode;
+      button.classList.toggle("selected", isSelected);
+      button.setAttribute("aria-selected", isSelected);
+    });
+  };
+
+  const flyToResult = (code) => {
+    const layer = searchMap[code];
+    if (!layer) {
+      return;
+    }
+
+    map.flyToBounds(layer.getBounds().pad(0.5), {
+      duration: 0.5,
+    });
+  };
+
+  const setSelectedResult = (code, { fly = false, forceFly = false } = {}) => {
+    const nextCode = code ?? null;
+    const hasChanged = selectedResultCode !== nextCode;
+    selectedResultCode = nextCode;
+    updateResultSelection();
+
+    if (fly && selectedResultCode && (hasChanged || forceFly)) {
+      flyToResult(selectedResultCode);
+    }
+  };
+
+  const renderSearchResults = (results) => {
+    if (!searchResults) {
+      return;
+    }
+
+    searchResults.innerHTML = "";
+    const limitedResults = results.slice(0, SEARCH_RENDER_LIMIT);
+
+    if (limitedResults.length === 0) {
+      searchResults.classList.add("hidden");
+      updateResultSelection();
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+
+    limitedResults.forEach((result) => {
+      const listItem = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.code = result.item.code;
+      button.textContent = `${result.item.name} (${result.item.code})`;
+
+      listItem.appendChild(button);
+      fragment.appendChild(listItem);
+    });
+
+    searchResults.appendChild(fragment);
+    searchResults.classList.remove("hidden");
+    updateResultSelection();
+  };
+
+  const clearSearchResults = () => {
+    lastResults = [];
+    if (searchResults) {
+      searchResults.innerHTML = "";
+      searchResults.classList.add("hidden");
+    }
+    setSelectedResult(null);
+  };
+
   const searchOptions = {
     threshold: 0.2,
     location: 0,
@@ -286,37 +376,76 @@ const initializeMap = ({ adm1, adm3, data }) => {
     searchOpacities = [];
 
     const query = searchInput.value.trim();
-    if (query.length <= 2) {
+    if (query === "") {
+      clearSearchResults();
       return;
     }
 
-    const results = fuse.search(query, { limit: SEARCH_LIMIT });
-    const resultLayers = [];
-    results.forEach((result, index) => {
+    if (query.length <= 2) {
+      clearSearchResults();
+      return;
+    }
+
+    const results = fuse.search(query, { limit: SEARCH_RENDER_LIMIT });
+    lastResults = results;
+    renderSearchResults(results);
+
+    if (results.length === 0) {
+      setSelectedResult(null);
+      return;
+    }
+
+    results.slice(0, SEARCH_HIGHLIGHT_LIMIT).forEach((result, index) => {
       const { item } = result;
       const layer = searchMap[item.code];
       if (!layer) {
         return;
       }
 
-      const opacity = 1 - index / SEARCH_LIMIT;
+      const opacity = 1 - index / SEARCH_HIGHLIGHT_LIMIT;
       layer.setStyle({
         fillColor: "red",
         fillOpacity: opacity,
       });
       currentSearch.push(item.code);
       searchOpacities.push(opacity);
-      resultLayers.push(layer);
     });
 
-    if (resultLayers.length > 0) {
-      map.flyToBounds(L.featureGroup(resultLayers).getBounds().pad(0.5), {
-        duration: 0.5,
-      });
-    }
+    setSelectedResult(results[0]?.item.code, { fly: true });
   };
 
-  searchInput.oninput = handleSearchInput;
+  const debouncedSearch = debounce(handleSearchInput, SEARCH_DEBOUNCE_MS);
+
+  searchInput.addEventListener("input", debouncedSearch);
+
+  searchInput.addEventListener("keyup", (event) => {
+    if (event.key === "Enter") {
+      return;
+    }
+    debouncedSearch();
+  });
+
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+    if (lastResults.length === 0) {
+      return;
+    }
+
+    setSelectedResult(lastResults[0]?.item.code, { fly: true, forceFly: true });
+  });
+
+  searchResults?.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-code]");
+    if (!button) {
+      return;
+    }
+
+    setSelectedResult(button.dataset.code, { fly: true, forceFly: true });
+  });
 };
 
 const loadAssets = async () => {

@@ -1,23 +1,85 @@
 "use strict";
 
-// constants in one place
-const opacities = {
-  Непереборний: 1,
-  "Дуже високий": 0.8,
-  Високий: 0.6,
-  Помірний: 0.4,
-  Задовільний: 0.2,
-};
+/**
+ * Ordered palette describing how each risk level should be rendered.
+ * The array preserves the legend order while `RISK_STYLE_MAP` offers
+ * quick lookup for styling functions and hover interactions.
+ *
+ * Risk level -> visual style mapping:
+ * - "Непереборний": #004BC1 @ 1.0 opacity
+ * - "Дуже високий": #004BC1 @ 0.8 opacity
+ * - "Високий": #004BC1 @ 0.6 opacity
+ * - "Помірний": #004BC1 @ 0.4 opacity
+ * - "Задовільний": #004BC1 @ 0.2 opacity
+ */
+const RISK_LEVELS = [
+  { level: "Непереборний", color: "#004BC1", opacity: 1 },
+  { level: "Дуже високий", color: "#004BC1", opacity: 0.8 },
+  { level: "Високий", color: "#004BC1", opacity: 0.6 },
+  { level: "Помірний", color: "#004BC1", opacity: 0.4 },
+  { level: "Задовільний", color: "#004BC1", opacity: 0.2 },
+];
 
-const pallete = {
-  Непереборний: "#004BC1",
-  "Дуже високий": "#004BC1",
-  Високий: "#004BC1",
-  Помірний: "#004BC1",
-  Задовільний: "#004BC1",
-};
+const RISK_STYLE_MAP = Object.fromEntries(
+  RISK_LEVELS.map(({ level, ...style }) => [level, style])
+);
+
+const DEFAULT_RISK_LEVEL = RISK_LEVELS.at(-1).level;
+
+/**
+ * Retrieves a style for the provided risk level, falling back to
+ * the lowest risk entry to keep legend ordering intact when data
+ * contains unexpected or missing values.
+ * @param {string} risk - Risk level name from the dataset.
+ * @returns {{color: string, opacity: number}} style for map rendering.
+ */
+const getRiskStyle = (risk) =>
+  RISK_STYLE_MAP[risk] ?? RISK_STYLE_MAP[DEFAULT_RISK_LEVEL];
+
+const chornobylZoneId = "3200000";
 
 const searchLimit = 5;
+const searchMap = {};
+let currentSearch = [];
+let searchOpacities = [];
+
+onload = async () => {
+  loadAssets().then(({ adm1, adm3, data }) => {
+    /**
+     * Styles ADM3 level GeoJSON features based on the risk level mapping.
+     * Falls back to a neutral grey overlay for the Chornobyl exclusion zone.
+     * @param {GeoJSON.Feature} feature - ADM3 feature with id and risk metadata.
+     * @returns {L.PathOptions} Leaflet styling options for the feature.
+     */
+    const style_adm3 = (feature) => {
+      const riskStyle = getRiskStyle(data[feature.properties.id].risk);
+      return {
+        fill: true,
+        fillColor:
+          feature.properties.id === chornobylZoneId
+            ? "grey"
+            : riskStyle.color,
+        fillOpacity:
+          feature.properties.id === chornobylZoneId ? 1 : riskStyle.opacity,
+        stroke: true,
+        weight: 0.5,
+        opacity: 1,
+        color: "#F5F7FA",
+      };
+    };
+
+    /**
+     * Styles ADM1 level GeoJSON features that provide the yellow outline.
+     * @returns {L.PathOptions} Leaflet styling options for ADM1 borders.
+     */
+    const style_adm1 = () => {
+      return {
+        fill: false,
+        stroke: true,
+        weight: 1,
+        opacity: 1,
+        color: "#FFE358",
+      };
 var searchMap = {};
 var currentSearch = [];
 var searchOpacities = [];
@@ -83,6 +145,49 @@ const initializeMap = ({ adm1, adm3, data }) => {
     };
   };
 
+    /**
+     * Attaches hover interactions to ADM3 features to highlight and reset styles.
+     * Respects active search highlights by restoring prior search opacity and color.
+     * @param {GeoJSON.Feature} feature - ADM3 feature providing identifiers.
+     * @param {L.Layer} layer - Leaflet layer instance representing the feature.
+     */
+    const handler = (feature, layer) => {
+      if (feature.properties.id !== chornobylZoneId) {
+        layer
+          .on({
+            mouseover: (event) => {
+              event.target
+                .setStyle({
+                  fillOpacity: 1,
+                  fillColor: "#FFE358",
+                })
+                .bringToFront();
+              info.update(feature.properties);
+            },
+            mouseout: (event) => {
+              const flag = currentSearch.includes(
+                data[feature.properties.id].code
+              );
+              event.target
+                .setStyle({
+                  fillOpacity: flag
+                    ? searchOpacities[
+                        currentSearch.indexOf(data[feature.properties.id].code)
+                      ]
+                    : getRiskStyle(data[feature.properties.id].risk).opacity,
+                  fillColor: flag
+                    ? "red"
+                    : getRiskStyle(data[feature.properties.id].risk).color,
+                })
+                .bringToBack();
+              info.update();
+            },
+          })
+          .bindTooltip(data[feature.properties.id].name);
+        searchMap[data[feature.properties.id].code] = layer;
+      } else {
+        layer.bindTooltip("Чорнобильська зона відчуження");
+      }
   // style ADM1 level geo features
   const style_adm1 = () => {
     return {
@@ -130,6 +235,67 @@ const initializeMap = ({ adm1, adm3, data }) => {
     }
   };
 
+    // create geo layers
+    const adm1_layer = L.geoJSON(adm1, { style: style_adm1 });
+    const adm3_layer = L.geoJSON(adm3, {
+      style: style_adm3,
+      onEachFeature: handler,
+    });
+
+    // get geojson bounds and map center
+    const bounds = adm3_layer.getBounds().pad(0.5);
+    const center = bounds.getCenter();
+
+    // map initialization
+    const map = L.map("map", {
+      attributionControl: false,
+      zoomControl: false,
+      center: center,
+      zoomDelta: 0.5,
+      zoomSnap: 0.5,
+      zoom: 6.5,
+      minZoom: 6.5,
+      maxZoom: 15,
+      boxZoom: false,
+      maxBounds: bounds,
+      maxBoundsViscosity: 1.0,
+      layers: [adm3_layer, adm1_layer],
+    });
+
+    map.on("movestart", () => {
+      map.eachLayer((layer) => layer.closeTooltip());
+    });
+
+    map.on("zoomstart", () => {
+      map.eachLayer((layer) => layer.closeTooltip());
+    });
+
+    // attributions control
+    const attribution = L.control.attribution({
+      prefix: false,
+      position: "bottomright",
+    });
+
+    attribution.addAttribution(
+      '&copy; <a href="https://etheric.dev/" target="_blank" rel="noopener noreferrer">etheric.dev<a>'
+    );
+
+    attribution.addTo(map);
+
+    // zoom control
+    const zoom = L.control.zoom({
+      position: "bottomright",
+    });
+
+    zoom.addTo(map);
+
+    // legend control
+    const legend = L.control({ position: "bottomleft" });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create("div", "legend control");
+      div.innerHTML += "<h2>Рівні ризику</h2>";
+      for (const { level, opacity } of RISK_LEVELS)
+        div.innerHTML += `<div>
   // create geo layers
   const adm1_layer = L.geoJSON(adm1, { style: style_adm1 });
   const adm3_layer = L.geoJSON(adm3, {
@@ -192,7 +358,7 @@ const initializeMap = ({ adm1, adm3, data }) => {
     for (const [risk, opacity] of Object.entries(opacities))
       div.innerHTML += `<div>
         <span data-o="${opacity}"></span>
-        <span>${risk}</span>
+        <span>${level}</span>
       </div>`;
     return div;
   };
@@ -264,6 +430,25 @@ const initializeMap = ({ adm1, adm3, data }) => {
   const index = Fuse.createIndex(options.keys, db);
   const fuse = new Fuse(db, options, index);
 
+    const db = Object.values(data);
+    const index = Fuse.createIndex(options.keys, db);
+    const fuse = new Fuse(db, options, index);
+
+    /**
+     * Handles fuzzy search input to highlight and zoom to matching communities.
+     * Clears existing highlights when the query is too short (<= 2 characters).
+     */
+    const handleSearchInput = () => {
+      //resets
+      adm3_layer.resetStyle();
+      currentSearch = [];
+      searchOpacities = [];
+      if (
+        document.querySelector("#search").value &&
+        document.querySelector("#search").value.length > 2
+      ) {
+        const search = fuse.search(document.querySelector("#search").value, {
+          limit: searchLimit,
   document.querySelector("#search").oninput = () => {
     //resets
     adm3_layer.resetStyle();
@@ -286,6 +471,9 @@ const initializeMap = ({ adm1, adm3, data }) => {
         currentSearch.push(search[result].item.code);
         searchOpacities.push(1 - result / searchLimit);
       }
+    };
+    document.querySelector("#search").oninput = handleSearchInput;
+  });
       if (searchResults.length > 0) {
         map.flyToBounds(L.featureGroup(searchResults).getBounds().pad(0.5), {
           duration: 0.5,

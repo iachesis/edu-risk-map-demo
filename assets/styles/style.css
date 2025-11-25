@@ -50,10 +50,35 @@ header > * {
 main {
   flex: 1;
   background: #f5f7fa;
+  position: relative;
 }
 
 #map {
   height: 100%;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#loading,
+#error-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  background: rgba(245, 247, 250, 0.9);
+  font-family: var(--font);
+  font-size: 18px;
+  text-align: center;
+  padding: 0 20px;
+}
+
+#error-message {
+  color: #9b1b30;
+  font-weight: 600;
 }
 
 .control {

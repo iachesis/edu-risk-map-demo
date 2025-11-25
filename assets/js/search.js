@@ -120,17 +120,52 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
   const searchResults = document.querySelector("#search-results");
   const searchInput = document.querySelector("#search");
 
+  const resultId = (code) => `search-result-${code}`;
+
+  const getResultButtons = () =>
+    searchResults?.querySelectorAll("button[data-code]") ?? [];
+
+  const getButtonByCode = (code) => {
+    if (!code || !searchResults) {
+      return null;
+    }
+    return searchResults.querySelector(`button[data-code="${code}"]`);
+  };
+
+  const focusSelectedResult = () => {
+    const activeButton = getButtonByCode(searchState.selectedResultCode);
+    activeButton?.focus();
+  };
+
+  const updateActiveDescendant = () => {
+    const activeButton = getButtonByCode(searchState.selectedResultCode);
+
+    if (!searchInput) {
+      return;
+    }
+
+    if (activeButton?.id) {
+      searchInput.setAttribute("aria-activedescendant", activeButton.id);
+      return;
+    }
+
+    searchInput.removeAttribute("aria-activedescendant");
+  };
+
   const updateResultSelection = () => {
     if (!searchResults) {
       return;
     }
 
-    const buttons = searchResults.querySelectorAll("button[data-code]");
+    const buttons = getResultButtons();
     buttons.forEach((button) => {
       const isSelected = button.dataset.code === searchState.selectedResultCode;
       button.classList.toggle("selected", isSelected);
+      button.setAttribute("role", "option");
       button.setAttribute("aria-selected", isSelected);
     });
+
+    updateActiveDescendant();
   };
 
   const flyToResult = (code) => {
@@ -145,11 +180,18 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
     });
   };
 
-  const setSelectedResult = (code, { fly = false, forceFly = false } = {}) => {
+  const setSelectedResult = (
+    code,
+    { fly = false, forceFly = false, focus = false } = {}
+  ) => {
     const nextCode = code ?? null;
     const hasChanged = searchState.selectedResultCode !== nextCode;
     searchState.selectedResultCode = nextCode;
     updateResultSelection();
+
+    if (focus) {
+      focusSelectedResult();
+    }
 
     if (fly && searchState.selectedResultCode && (hasChanged || forceFly)) {
       if (!searchState.searchMap[searchState.selectedResultCode]) {
@@ -167,6 +209,7 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
       return;
     }
 
+    searchResults.setAttribute("role", "listbox");
     searchResults.innerHTML = "";
     const limitedResults = results.slice(0, SEARCH_RENDER_LIMIT);
 
@@ -184,6 +227,7 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
       button.type = "button";
       button.dataset.code = result.item.code;
       button.textContent = `${result.item.name} (${result.item.code})`;
+      button.id = resultId(result.item.code);
 
       listItem.appendChild(button);
       fragment.appendChild(listItem);
@@ -288,18 +332,55 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
   });
 
   searchInput.addEventListener("keydown", (event) => {
+    if (!searchResults) {
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      const buttons = [...getResultButtons()];
+      if (buttons.length === 0) {
+        return;
+      }
+
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const currentIndex = buttons.findIndex(
+        (button) => button.dataset.code === searchState.selectedResultCode
+      );
+
+      const nextIndex =
+        currentIndex === -1
+          ? direction === 1
+            ? 0
+            : buttons.length - 1
+          : (currentIndex + direction + buttons.length) % buttons.length;
+
+      setSelectedResult(buttons[nextIndex].dataset.code, { focus: true });
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSelectedResult(null, { focus: false });
+      searchInput.focus();
+      return;
+    }
+
     if (event.key !== "Enter") {
       return;
     }
 
     event.preventDefault();
-    if (searchState.lastResults.length === 0) {
+    const activeCode =
+      searchState.selectedResultCode ?? searchState.lastResults[0]?.item.code;
+    if (!activeCode) {
       return;
     }
 
-    setSelectedResult(searchState.lastResults[0]?.item.code, {
+    setSelectedResult(activeCode, {
       fly: true,
       forceFly: true,
+      focus: true,
     });
   });
 
@@ -310,6 +391,48 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
     }
 
     setSelectedResult(button.dataset.code, { fly: true, forceFly: true });
+  });
+
+  searchResults?.addEventListener("keydown", (event) => {
+    const buttons = [...getResultButtons()];
+    if (buttons.length === 0) {
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const currentIndex = buttons.findIndex(
+        (button) => button.dataset.code === searchState.selectedResultCode
+      );
+      const nextIndex =
+        currentIndex === -1
+          ? direction === 1
+            ? 0
+            : buttons.length - 1
+          : (currentIndex + direction + buttons.length) % buttons.length;
+
+      setSelectedResult(buttons[nextIndex].dataset.code, { focus: true });
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const activeButton =
+        getButtonByCode(searchState.selectedResultCode) ?? buttons[0];
+      setSelectedResult(activeButton.dataset.code, {
+        fly: true,
+        forceFly: true,
+        focus: true,
+      });
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSelectedResult(null);
+      searchInput?.focus();
+    }
   });
 
   return missingSearchEntries;

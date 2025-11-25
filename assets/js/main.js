@@ -1,6 +1,6 @@
 import { createFeatureHandler } from "./featureEvents.js";
 import { addMapFurniture, createInfoControl } from "./controls.js";
-import { loadAssets } from "./dataLoader.js";
+import { FetchJsonError, loadAssets } from "./dataLoader.js";
 import {
   createFeatureDataHelpers,
   createStyleFunctions,
@@ -62,7 +62,21 @@ const bootstrap = async () => {
     const assets = await loadAssets();
     initializeMap(assets);
   } catch (error) {
-    showError("Не вдалося завантажити дані. Будь ласка, спробуйте пізніше.");
+    if (error instanceof FetchJsonError) {
+      switch (error.type) {
+        case "timeout":
+          showError("Час очікування відповіді минув. Спробуйте пізніше.");
+          break;
+        case "bad_response":
+          showError("Отримано некоректну відповідь від сервера.");
+          break;
+        default:
+          showError("Виникла мережна помилка. Спробуйте ще раз.");
+      }
+    } else {
+      showError("Не вдалося завантажити дані. Будь ласка, спробуйте пізніше.");
+    }
+
     console.error(error);
   } finally {
     hideLoading();

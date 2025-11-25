@@ -4,6 +4,13 @@
  * Ordered palette describing how each risk level should be rendered.
  * The array preserves the legend order while `RISK_STYLE_MAP` offers
  * quick lookup for styling functions and hover interactions.
+ *
+ * Risk level -> visual style mapping:
+ * - "Непереборний": #004BC1 @ 1.0 opacity
+ * - "Дуже високий": #004BC1 @ 0.8 opacity
+ * - "Високий": #004BC1 @ 0.6 opacity
+ * - "Помірний": #004BC1 @ 0.4 opacity
+ * - "Задовільний": #004BC1 @ 0.2 opacity
  */
 const RISK_LEVELS = [
   { level: "Непереборний", color: "#004BC1", opacity: 1 },
@@ -17,8 +24,17 @@ const RISK_STYLE_MAP = Object.fromEntries(
   RISK_LEVELS.map(({ level, ...style }) => [level, style])
 );
 
+const DEFAULT_RISK_LEVEL = RISK_LEVELS.at(-1).level;
+
+/**
+ * Retrieves a style for the provided risk level, falling back to
+ * the lowest risk entry to keep legend ordering intact when data
+ * contains unexpected or missing values.
+ * @param {string} risk - Risk level name from the dataset.
+ * @returns {{color: string, opacity: number}} style for map rendering.
+ */
 const getRiskStyle = (risk) =>
-  RISK_STYLE_MAP[risk] ?? RISK_STYLE_MAP["Помірний"];
+  RISK_STYLE_MAP[risk] ?? RISK_STYLE_MAP[DEFAULT_RISK_LEVEL];
 
 const chornobylZoneId = "3200000";
 

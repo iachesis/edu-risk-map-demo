@@ -1,17 +1,24 @@
 "use strict";
 
 /**
- * Mapping between risk levels from the dataset and the fill styles applied on the map.
- * Each entry describes the color and opacity to use when rendering a community polygon
- * and feeds the legend control, keeping visual defaults consistent across interactions.
+ * Ordered palette describing how each risk level should be rendered.
+ * The array preserves the legend order while `RISK_STYLE_MAP` offers
+ * quick lookup for styling functions and hover interactions.
  */
-const RISK_STYLES = {
-  Непереборний: { color: "#004BC1", opacity: 1 },
-  "Дуже високий": { color: "#004BC1", opacity: 0.8 },
-  Високий: { color: "#004BC1", opacity: 0.6 },
-  Помірний: { color: "#004BC1", opacity: 0.4 },
-  Задовільний: { color: "#004BC1", opacity: 0.2 },
-};
+const RISK_LEVELS = [
+  { level: "Непереборний", color: "#004BC1", opacity: 1 },
+  { level: "Дуже високий", color: "#004BC1", opacity: 0.8 },
+  { level: "Високий", color: "#004BC1", opacity: 0.6 },
+  { level: "Помірний", color: "#004BC1", opacity: 0.4 },
+  { level: "Задовільний", color: "#004BC1", opacity: 0.2 },
+];
+
+const RISK_STYLE_MAP = Object.fromEntries(
+  RISK_LEVELS.map(({ level, ...style }) => [level, style])
+);
+
+const getRiskStyle = (risk) =>
+  RISK_STYLE_MAP[risk] ?? RISK_STYLE_MAP["Помірний"];
 
 const chornobylZoneId = "3200000";
 
@@ -29,8 +36,7 @@ onload = async () => {
      * @returns {L.PathOptions} Leaflet styling options for the feature.
      */
     const style_adm3 = (feature) => {
-      const riskStyle =
-        RISK_STYLES[data[feature.properties.id].risk] ?? RISK_STYLES.Помірний;
+      const riskStyle = getRiskStyle(data[feature.properties.id].risk);
       return {
         fill: true,
         fillColor:
@@ -89,10 +95,10 @@ onload = async () => {
                     ? searchOpacities[
                         currentSearch.indexOf(data[feature.properties.id].code)
                       ]
-                    : RISK_STYLES[data[feature.properties.id].risk].opacity,
+                    : getRiskStyle(data[feature.properties.id].risk).opacity,
                   fillColor: flag
                     ? "red"
-                    : RISK_STYLES[data[feature.properties.id].risk].color,
+                    : getRiskStyle(data[feature.properties.id].risk).color,
                 })
                 .bringToBack();
               info.update();
@@ -164,10 +170,10 @@ onload = async () => {
     legend.onAdd = () => {
       const div = L.DomUtil.create("div", "legend control");
       div.innerHTML += "<h2>Рівні ризику</h2>";
-      for (const [risk, style] of Object.entries(RISK_STYLES))
+      for (const { level, opacity } of RISK_LEVELS)
         div.innerHTML += `<div>
-        <span data-o="${style.opacity}"></span>
-        <span>${risk}</span>
+        <span data-o="${opacity}"></span>
+        <span>${level}</span>
       </div>`;
       return div;
     };

@@ -1,41 +1,44 @@
 "use strict";
 
-// constants in one place
-const opacities = {
-  Непереборний: 1,
-  "Дуже високий": 0.8,
-  Високий: 0.6,
-  Помірний: 0.4,
-  Задовільний: 0.2,
+/**
+ * Mapping between risk levels from the dataset and the fill styles applied on the map.
+ * Each entry describes the color and opacity to use when rendering a community polygon
+ * and feeds the legend control, keeping visual defaults consistent across interactions.
+ */
+const RISK_STYLES = {
+  Непереборний: { color: "#004BC1", opacity: 1 },
+  "Дуже високий": { color: "#004BC1", opacity: 0.8 },
+  Високий: { color: "#004BC1", opacity: 0.6 },
+  Помірний: { color: "#004BC1", opacity: 0.4 },
+  Задовільний: { color: "#004BC1", opacity: 0.2 },
 };
 
-const pallete = {
-  Непереборний: "#004BC1",
-  "Дуже високий": "#004BC1",
-  Високий: "#004BC1",
-  Помірний: "#004BC1",
-  Задовільний: "#004BC1",
-};
+const chornobylZoneId = "3200000";
 
 const searchLimit = 5;
-var searchMap = {};
-var currentSearch = [];
-var searchOpacities = [];
+const searchMap = {};
+let currentSearch = [];
+let searchOpacities = [];
 
 onload = async () => {
   loadAssets().then(({ adm1, adm3, data }) => {
-    //style ADM3 level geo features
+    /**
+     * Styles ADM3 level GeoJSON features based on the risk level mapping.
+     * Falls back to a neutral grey overlay for the Chornobyl exclusion zone.
+     * @param {GeoJSON.Feature} feature - ADM3 feature with id and risk metadata.
+     * @returns {L.PathOptions} Leaflet styling options for the feature.
+     */
     const style_adm3 = (feature) => {
+      const riskStyle =
+        RISK_STYLES[data[feature.properties.id].risk] ?? RISK_STYLES.Помірний;
       return {
         fill: true,
         fillColor:
-          feature.properties.id == "3200000"
+          feature.properties.id === chornobylZoneId
             ? "grey"
-            : pallete[data[feature.properties.id].risk],
+            : riskStyle.color,
         fillOpacity:
-          feature.properties.id == "3200000"
-            ? 1
-            : opacities[data[feature.properties.id].risk],
+          feature.properties.id === chornobylZoneId ? 1 : riskStyle.opacity,
         stroke: true,
         weight: 0.5,
         opacity: 1,
@@ -43,7 +46,10 @@ onload = async () => {
       };
     };
 
-    // style ADM1 level geo features
+    /**
+     * Styles ADM1 level GeoJSON features that provide the yellow outline.
+     * @returns {L.PathOptions} Leaflet styling options for ADM1 borders.
+     */
     const style_adm1 = () => {
       return {
         fill: false,
@@ -54,9 +60,14 @@ onload = async () => {
       };
     };
 
-    // handle mouse events on geo geatures
+    /**
+     * Attaches hover interactions to ADM3 features to highlight and reset styles.
+     * Respects active search highlights by restoring prior search opacity and color.
+     * @param {GeoJSON.Feature} feature - ADM3 feature providing identifiers.
+     * @param {L.Layer} layer - Leaflet layer instance representing the feature.
+     */
     const handler = (feature, layer) => {
-      if (feature.properties.id != "3200000") {
+      if (feature.properties.id !== chornobylZoneId) {
         layer
           .on({
             mouseover: (event) => {
@@ -78,10 +89,10 @@ onload = async () => {
                     ? searchOpacities[
                         currentSearch.indexOf(data[feature.properties.id].code)
                       ]
-                    : opacities[data[feature.properties.id].risk],
+                    : RISK_STYLES[data[feature.properties.id].risk].opacity,
                   fillColor: flag
                     ? "red"
-                    : pallete[data[feature.properties.id].risk],
+                    : RISK_STYLES[data[feature.properties.id].risk].color,
                 })
                 .bringToBack();
               info.update();
@@ -153,9 +164,9 @@ onload = async () => {
     legend.onAdd = () => {
       const div = L.DomUtil.create("div", "legend control");
       div.innerHTML += "<h2>Рівні ризику</h2>";
-      for (const [risk, opacity] of Object.entries(opacities))
+      for (const [risk, style] of Object.entries(RISK_STYLES))
         div.innerHTML += `<div>
-        <span data-o="${opacity}"></span>
+        <span data-o="${style.opacity}"></span>
         <span>${risk}</span>
       </div>`;
       return div;
@@ -227,7 +238,11 @@ onload = async () => {
     const index = Fuse.createIndex(options.keys, db);
     const fuse = new Fuse(db, options, index);
 
-    document.querySelector("#search").oninput = () => {
+    /**
+     * Handles fuzzy search input to highlight and zoom to matching communities.
+     * Clears existing highlights when the query is too short (<= 2 characters).
+     */
+    const handleSearchInput = () => {
       //resets
       adm3_layer.resetStyle();
       currentSearch = [];
@@ -256,6 +271,7 @@ onload = async () => {
         }
       }
     };
+    document.querySelector("#search").oninput = handleSearchInput;
   });
 };
 

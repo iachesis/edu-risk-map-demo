@@ -98,6 +98,11 @@ header > * {
   font-weight: 600;
 }
 
+#search-results button:focus-visible {
+  background: rgb(255, 227, 88, 0.7);
+  font-weight: 600;
+}
+
 main {
   flex: 1;
   background: #f5f7fa;

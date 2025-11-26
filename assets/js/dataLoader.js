@@ -4,6 +4,66 @@ const failedFetchCache = new Map();
 const REQUEST_TIMEOUT_MS = 8000;
 const MAX_ATTEMPTS = 3;
 const BASE_RETRY_DELAY_MS = 300;
+const CACHE_PREFIX = "fetchCache:";
+// Use a monotonically increasing date stamp so we can bump cache validity to a
+// specific deployment or data refresh date (YYYY-MM-DD). This gives us a
+// human-readable invalidation signal that is more informative than opaque
+// version counters and safer than relying on implicit storage expiry.
+const CACHE_VERSION_DATE = "2025-01-15";
+const CACHE_VERSION_MS = Date.parse(CACHE_VERSION_DATE);
+
+let cacheVersionEnsured = false;
+
+const ensureCacheVersion = () => {
+  if (cacheVersionEnsured) {
+    return;
+  }
+
+  cacheVersionEnsured = true;
+
+  try {
+    const storedVersion = localStorage.getItem(`${CACHE_PREFIX}version`);
+    const storedVersionMs = storedVersion ? Number.parseInt(storedVersion, 10) : NaN;
+
+    if (Number.isNaN(CACHE_VERSION_MS)) {
+      throw new Error(`Invalid CACHE_VERSION_DATE: ${CACHE_VERSION_DATE}`);
+    }
+
+    if (storedVersionMs !== CACHE_VERSION_MS) {
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(CACHE_PREFIX)) {
+          localStorage.removeItem(key);
+        }
+      }
+
+      localStorage.setItem(`${CACHE_PREFIX}version`, `${CACHE_VERSION_MS}`);
+    }
+  } catch (error) {
+    console.warn("Persistent cache unavailable, continuing without it", error);
+  }
+};
+
+const getPersistentCacheKey = (url) => `${CACHE_PREFIX}${CACHE_VERSION_MS}:${url}`;
+
+const loadFromPersistentCache = (url) => {
+  try {
+    ensureCacheVersion();
+    const cachedValue = localStorage.getItem(getPersistentCacheKey(url));
+
+    if (!cachedValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(cachedValue);
+    fetchCache.set(url, parsedValue);
+    console.debug(`Serving ${url} from persistent cache`);
+    return parsedValue;
+  } catch (error) {
+    console.warn(`Failed to read cached response for ${url}`, error);
+    return null;
+  }
+};
 
 const waitWithJitter = (attempt) =>
   new Promise((resolve) => {
@@ -73,6 +133,12 @@ export const fetchJson = async (url) => {
     return fetchCache.get(url);
   }
 
+  const persistedResponse = loadFromPersistentCache(url);
+
+  if (persistedResponse) {
+    return persistedResponse;
+  }
+
   if (failedFetchCache.has(url)) {
     // Failed attempts are cached separately to avoid storing partial/invalid
     // responses in the main fetchCache. Subsequent calls can immediately surface
@@ -86,6 +152,15 @@ export const fetchJson = async (url) => {
     try {
       const json = await fetchWithTimeout(url, attempt);
       fetchCache.set(url, json);
+      try {
+        ensureCacheVersion();
+        localStorage.setItem(
+          getPersistentCacheKey(url),
+          JSON.stringify(json)
+        );
+      } catch (error) {
+        console.warn(`Failed to persist cached response for ${url}`, error);
+      }
       failedFetchCache.delete(url);
       return json;
     } catch (error) {

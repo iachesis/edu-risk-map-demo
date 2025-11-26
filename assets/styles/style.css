@@ -72,6 +72,37 @@ header > * {
   z-index: 1001;
 }
 
+#search-status {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 100%;
+  max-width: 380px;
+  z-index: 1001;
+}
+
+.search-status-message {
+  width: 100%;
+  padding: 12px 16px;
+  background: #ffffff;
+  border: 1px dashed rgba(29, 29, 27, 0.2);
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 20px;
+  color: #1d1d1b;
+}
+
+#search-loading {
+  color: #1d1d1b;
+  font-style: italic;
+}
+
+#search-empty {
+  color: #6b7280;
+}
+
 #search-results li:not(:last-child) {
   border-bottom: 1px solid rgb(29, 29, 27, 0.1);
 }

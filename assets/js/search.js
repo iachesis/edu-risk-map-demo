@@ -117,8 +117,49 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
       ? adm3Layer.getBounds()
       : null;
 
+  const searchContainer = document.querySelector("#search-container");
   const searchResults = document.querySelector("#search-results");
   const searchInput = document.querySelector("#search");
+
+  const createStatusElement = (id, text) => {
+    const element = document.createElement("div");
+    element.id = id;
+    element.classList.add("search-status-message", "hidden");
+    element.textContent = text;
+    element.setAttribute("role", "status");
+    element.setAttribute("aria-live", "polite");
+    return element;
+  };
+
+  const searchLoading = createStatusElement("search-loading", "Пошук…");
+  const emptyMessage = createStatusElement("search-empty", "No matches found");
+
+  if (searchContainer) {
+    const statusContainer = document.createElement("div");
+    statusContainer.id = "search-status";
+    statusContainer.classList.add("search-status");
+    statusContainer.append(searchLoading, emptyMessage);
+    searchContainer.append(statusContainer);
+  }
+
+  const hideStatusMessages = () => {
+    searchLoading?.classList.add("hidden");
+    emptyMessage?.classList.add("hidden");
+  };
+
+  const showLoadingIndicator = () => {
+    hideStatusMessages();
+    searchLoading?.classList.remove("hidden");
+  };
+
+  const showEmptyMessage = () => {
+    searchLoading?.classList.add("hidden");
+    emptyMessage?.classList.remove("hidden");
+  };
+
+  const clearLoadingIndicator = () => {
+    searchLoading?.classList.add("hidden");
+  };
 
   const resultId = (code) => `search-result-${code}`;
 
@@ -215,9 +256,12 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
 
     if (limitedResults.length === 0) {
       searchResults.classList.add("hidden");
+      showEmptyMessage();
       updateResultSelection();
       return;
     }
+
+    hideStatusMessages();
 
     const fragment = document.createDocumentFragment();
 
@@ -244,6 +288,7 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
       searchResults.innerHTML = "";
       searchResults.classList.add("hidden");
     }
+    hideStatusMessages();
     setSelectedResult(null);
   };
 
@@ -251,6 +296,7 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
     adm3Layer.resetStyle();
     searchState.currentSearch = [];
     searchState.searchOpacities = [];
+    hideStatusMessages();
 
     const query = searchInput.value.trim();
     if (query === "" || query.length <= 2) {
@@ -261,62 +307,71 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
       return;
     }
 
-    const results = fuse.search(query, { limit: SEARCH_RENDER_LIMIT });
-    searchState.lastResults = results;
-    renderSearchResults(results);
+    showLoadingIndicator();
 
-    if (results.length === 0) {
-      setSelectedResult(null);
-      if (defaultMapBounds) {
-        map.fitBounds(defaultMapBounds);
-      }
-      return;
-    }
+    try {
+      const results = fuse.search(query, { limit: SEARCH_RENDER_LIMIT });
+      searchState.lastResults = results;
+      renderSearchResults(results);
 
-    const padBounds = (bounds) =>
-      typeof bounds?.pad === "function" ? bounds.pad(0.5) : bounds;
-
-    const highlightedLayers = highlightSearchResults(
-      searchState,
-      results,
-      SEARCH_HIGHLIGHT_LIMIT,
-      {
-        onMissingLayer: (code) =>
-          console.warn(`Шар для результату пошуку з кодом ${code} відсутній.`),
-      }
-    );
-
-    setSelectedResult(results[0]?.item.code);
-
-    if (highlightedLayers.length === 0) {
-      if (defaultMapBounds) {
-        map.fitBounds(defaultMapBounds);
-      }
-      return;
-    }
-
-    if (highlightedLayers.length === 1) {
-      const singleBounds = highlightedLayers[0].getBounds?.();
-      if (!singleBounds) {
-        console.warn("Межі для вибраного шару недоступні.");
+      if (results.length === 0) {
+        setSelectedResult(null);
         if (defaultMapBounds) {
           map.fitBounds(defaultMapBounds);
         }
         return;
       }
 
-      map.flyToBounds(padBounds(singleBounds), { duration: 0.5 });
-      return;
-    }
+      const padBounds = (bounds) =>
+        typeof bounds?.pad === "function" ? bounds.pad(0.5) : bounds;
 
-    const combinedBounds = aggregateLayerBounds(highlightedLayers);
-    if (combinedBounds) {
-      map.fitBounds(padBounds(combinedBounds));
-      return;
-    }
+      const highlightedLayers = highlightSearchResults(
+        searchState,
+        results,
+        SEARCH_HIGHLIGHT_LIMIT,
+        {
+          onMissingLayer: (code) =>
+            console.warn(`Шар для результату пошуку з кодом ${code} відсутній.`),
+        }
+      );
 
-    if (defaultMapBounds) {
-      map.fitBounds(defaultMapBounds);
+      setSelectedResult(results[0]?.item.code);
+
+      if (highlightedLayers.length === 0) {
+        if (defaultMapBounds) {
+          map.fitBounds(defaultMapBounds);
+        }
+        return;
+      }
+
+      if (highlightedLayers.length === 1) {
+        const singleBounds = highlightedLayers[0].getBounds?.();
+        if (!singleBounds) {
+          console.warn("Межі для вибраного шару недоступні.");
+          if (defaultMapBounds) {
+            map.fitBounds(defaultMapBounds);
+          }
+          return;
+        }
+
+        map.flyToBounds(padBounds(singleBounds), { duration: 0.5 });
+        return;
+      }
+
+      const combinedBounds = aggregateLayerBounds(highlightedLayers);
+      if (combinedBounds) {
+        map.fitBounds(padBounds(combinedBounds));
+        return;
+      }
+
+      if (defaultMapBounds) {
+        map.fitBounds(defaultMapBounds);
+      }
+    } catch (error) {
+      console.error("Помилка під час пошуку:", error);
+      clearSearchResults();
+    } finally {
+      clearLoadingIndicator();
     }
   };
 

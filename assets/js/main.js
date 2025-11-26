@@ -9,7 +9,23 @@ import { createMapWithLayers } from "./mapSetup.js";
 import { createSearchState, setupSearch } from "./search.js";
 import { hideLoading, resetError, showError, showLoading } from "./utils.js";
 
-const initializeMap = ({ adm1, adm3, data }) => {
+const createGeometryPlaceholderLayer = () => {
+  const marker = L.circleMarker([48.5, 31], {
+    radius: 6,
+    color: "#666",
+    fillOpacity: 0.4,
+    opacity: 0.7,
+    interactive: false,
+  }).bindTooltip("Завантаження геометрій…", {
+    permanent: true,
+    direction: "top",
+    className: "geometry-loading-tooltip",
+  });
+
+  return L.layerGroup([marker]);
+};
+
+const initializeMap = ({ data, placeholderLayer }) => {
   const missingDataIds = new Set();
 
   const { getFeatureData } = createFeatureDataHelpers(data, missingDataIds);
@@ -18,6 +34,36 @@ const initializeMap = ({ adm1, adm3, data }) => {
   );
   const infoControl = createInfoControl(getFeatureData);
   const searchState = createSearchState();
+
+  const map = createMapWithLayers({ layers: [placeholderLayer] });
+
+  addMapFurniture(map, infoControl);
+
+  return {
+    map,
+    placeholderLayer,
+    missingDataIds,
+    infoControl,
+    searchState,
+    getFeatureData,
+    getFeatureStyle,
+    styleAdm1,
+    styleAdm3,
+  };
+};
+
+const attachGeometries = ({ adm1, adm3 }, mapState) => {
+  const {
+    map,
+    placeholderLayer,
+    missingDataIds,
+    infoControl,
+    searchState,
+    getFeatureData,
+    getFeatureStyle,
+    styleAdm1,
+    styleAdm3,
+  } = mapState;
 
   const featureHandler = createFeatureHandler({
     getFeatureData,
@@ -32,9 +78,18 @@ const initializeMap = ({ adm1, adm3, data }) => {
     onEachFeature: featureHandler,
   });
 
-  const map = createMapWithLayers(adm3Layer, adm1Layer);
+  if (placeholderLayer) {
+    map.removeLayer(placeholderLayer);
+  }
 
-  addMapFurniture(map, infoControl);
+  map.addLayer(adm3Layer);
+  map.addLayer(adm1Layer);
+
+  const adm3Bounds = adm3Layer.getBounds().pad(0.5);
+  if (adm3Bounds.isValid()) {
+    map.fitBounds(adm3Bounds);
+    map.setMaxBounds(adm3Bounds);
+  }
 
   const missingSearchEntries = setupSearch({
     adm3,
@@ -59,8 +114,18 @@ const bootstrap = async () => {
   showLoading();
   resetError();
   try {
-    const assets = await loadAssets();
-    initializeMap(assets);
+    const stagedAssets = await loadAssets();
+    const mapState = initializeMap({
+      data: stagedAssets.data,
+      placeholderLayer: createGeometryPlaceholderLayer(),
+    });
+
+    hideLoading();
+
+    await Promise.all([
+      stagedAssets.geometries.adm1,
+      stagedAssets.geometries.adm3,
+    ]).then(([adm1, adm3]) => attachGeometries({ adm1, adm3 }, mapState));
   } catch (error) {
     if (error instanceof FetchJsonError) {
       switch (error.type) {
@@ -77,8 +142,7 @@ const bootstrap = async () => {
       showError("Не вдалося завантажити дані. Будь ласка, спробуйте пізніше.");
     }
 
-    console.error(error);
-  } finally {
+    console.error("Помилка під час завантаження геометрій або даних", error);
     hideLoading();
   }
 };

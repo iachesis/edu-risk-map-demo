@@ -1,6 +1,24 @@
-export const createMapWithLayers = (adm3Layer, adm1Layer) => {
-  const bounds = adm3Layer.getBounds().pad(0.5);
-  const center = bounds.getCenter();
+const DEFAULT_BOUNDS = L.latLngBounds(
+  L.latLng(44, 22),
+  L.latLng(52.5, 41)
+);
+
+export const createMapWithLayers = ({ layers, bounds }) => {
+  const resolvedLayers = layers.filter(Boolean);
+
+  const layerBounds = resolvedLayers
+    .map((layer) => (typeof layer.getBounds === "function" ? layer.getBounds() : null))
+    .filter((layerBound) => layerBound && layerBound.isValid())
+    .reduce((aggregate, layerBound) => {
+      if (!aggregate) {
+        return layerBound;
+      }
+
+      return aggregate.extend(layerBound);
+    }, null);
+
+  const mapBounds = (bounds ?? layerBounds ?? DEFAULT_BOUNDS).pad(0.5);
+  const center = mapBounds.getCenter();
 
   const map = L.map("map", {
     attributionControl: false,
@@ -12,9 +30,9 @@ export const createMapWithLayers = (adm3Layer, adm1Layer) => {
     minZoom: 6.5,
     maxZoom: 15,
     boxZoom: false,
-    maxBounds: bounds,
+    maxBounds: mapBounds,
     maxBoundsViscosity: 1.0,
-    layers: [adm3Layer, adm1Layer],
+    layers: resolvedLayers,
   });
 
   map.on("movestart", () => {

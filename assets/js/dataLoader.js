@@ -179,12 +179,29 @@ export const fetchJson = async (url) => {
   throw lastError;
 };
 
-export const loadAssets = async () => {
-  const [adm1, adm3, data] = await Promise.all([
-    fetchJson("assets/data/adm1.json"),
-    fetchJson("assets/data/adm3.json"),
-    fetchJson("assets/data/data.json"),
-  ]);
+const logPhaseFailure = (phase, error) => {
+  console.error(`[${phase}] ${error.message}`, error);
+};
 
-  return { adm1, adm3, data };
+export const loadAssets = async () => {
+  try {
+    const data = await fetchJson("assets/data/data.json");
+
+    const loadGeometry = (url, label) =>
+      fetchJson(url).catch((error) => {
+        logPhaseFailure(label, error);
+        throw error;
+      });
+
+    return {
+      data,
+      geometries: {
+        adm1: loadGeometry("assets/data/adm1.json", "geometries:adm1"),
+        adm3: loadGeometry("assets/data/adm3.json", "geometries:adm3"),
+      },
+    };
+  } catch (error) {
+    logPhaseFailure("attributes", error);
+    throw error;
+  }
 };

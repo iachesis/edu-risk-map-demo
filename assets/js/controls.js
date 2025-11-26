@@ -92,7 +92,7 @@ export const addMapFurniture = (map, infoControl) => {
   });
 
   attribution.addAttribution(
-    '&copy; <a href="https://etheric.dev/" target="_blank" rel="noopener noreferrer">etheric.dev<a>'
+    '&copy; <a href="https://etheric.dev/" target="_blank" rel="noopener noreferrer">etheric.dev</a>'
   );
 
   attribution.addTo(map);

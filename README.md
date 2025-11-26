@@ -26,7 +26,7 @@ Because the site is fully static, no additional build steps are required.
   - `adm1.json`: oblast boundaries (Level 1 administrative units).
   - `adm3.json`: hromada boundaries with searchable names and КАТОТТГ identifiers.
   - `data.json`: risk-level metadata keyed by hromada.
-- `assets/js/` — Vanilla JavaScript modules for map setup (`mapSetup.js`), styling (`layerStyling.js`), data loading (`dataLoader.js`), search (`search.js`), and UI helpers.
+- `assets/js/` — Vanilla JavaScript modules for map setup and entry (`mapSetup.js`, `main.js`), styling (`layerStyling.js`), data loading (`dataLoader.js`), search (`search.js`), controls (`controls.js`), feature interactions (`featureEvents.js`), shared constants, and UI helpers.
 - `assets/styles/` — CSS for layout, typography, and Leaflet overrides.
 - `assets/logos/` — Partner branding shown in the header.
 

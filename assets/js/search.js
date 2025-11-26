@@ -161,6 +161,12 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
     searchLoading?.classList.add("hidden");
   };
 
+  const resetHighlights = () => {
+    adm3Layer?.resetStyle();
+    searchState.currentSearch = [];
+    searchState.searchOpacities = [];
+  };
+
   const resultId = (code) => `search-result-${code}`;
 
   const getResultButtons = () =>
@@ -270,8 +276,23 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.code = result.item.code;
-      button.textContent = `${result.item.name} (${result.item.code})`;
       button.id = resultId(result.item.code);
+
+      const titleRow = document.createElement("div");
+      titleRow.classList.add("search-result-title");
+      titleRow.textContent = result.item.name;
+
+      const metaRow = document.createElement("div");
+      metaRow.classList.add("search-result-meta");
+      const oblastLabel = result.item.region ?? "Область не вказана";
+      metaRow.textContent = `${oblastLabel} · ${result.item.code}`;
+
+      button.setAttribute(
+        "aria-label",
+        `${result.item.name}, ${oblastLabel}, ${result.item.code}`
+      );
+
+      button.append(titleRow, metaRow);
 
       listItem.appendChild(button);
       fragment.appendChild(listItem);
@@ -293,9 +314,7 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
   };
 
   const handleSearchInput = () => {
-    adm3Layer.resetStyle();
-    searchState.currentSearch = [];
-    searchState.searchOpacities = [];
+    resetHighlights();
     hideStatusMessages();
 
     const query = searchInput.value.trim();

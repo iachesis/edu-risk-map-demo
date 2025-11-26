@@ -132,7 +132,7 @@ export const setupSearch = ({ adm3, getFeatureData, map, adm3Layer, searchState 
   };
 
   const searchLoading = createStatusElement("search-loading", "Пошук…");
-  const emptyMessage = createStatusElement("search-empty", "No matches found");
+  const emptyMessage = createStatusElement("search-empty", "Результати не знайдено");
 
   if (searchContainer) {
     const statusContainer = document.createElement("div");

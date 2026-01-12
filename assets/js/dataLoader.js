@@ -9,7 +9,7 @@ const CACHE_PREFIX = "fetchCache:";
 // specific deployment or data refresh date (YYYY-MM-DD). This gives us a
 // human-readable invalidation signal that is more informative than opaque
 // version counters and safer than relying on implicit storage expiry.
-const CACHE_VERSION_DATE = "2025-01-15";
+const CACHE_VERSION_DATE = "2025-09-05";
 const CACHE_VERSION_MS = Date.parse(CACHE_VERSION_DATE);
 
 let cacheVersionEnsured = false;
